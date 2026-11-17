@@ -87,8 +87,9 @@ function CheckoutForm({
     const result = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        // After a successful 3-D Secure redirect, return here.
-        return_url: window.location.href,
+        // After a 3-D Secure challenge, return to the product page on the
+        // current origin (localhost in dev, the Vercel domain in production).
+        return_url: `${window.location.origin}/?page=product`,
       },
       redirect: "if_required",
     });

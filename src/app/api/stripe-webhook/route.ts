@@ -50,22 +50,41 @@ export async function POST(request: Request) {
     switch (event.type) {
       case "payment_intent.succeeded": {
         const intent = event.data.object;
+        const m = intent.metadata || {};
         console.log(
-          `[stripe-webhook] payment_intent.succeeded id=${intent.id} amount=${
-            intent.amount
-          } ${intent.currency} metadata=`,
-          intent.metadata
+          `[stripe-webhook] ✅ payment_intent.succeeded\n` +
+            `   intent:    ${intent.id}\n` +
+            `   amount:    ${(intent.amount / 100).toFixed(2)} ${intent.currency.toUpperCase()}\n` +
+            `   bundles:   ${m.bundles || "—"}\n` +
+            `   bottles:   ${m.bottle_count || "—"}\n` +
+            `   items:     ${m.items || "—"}\n` +
+            `   products:  ${m.stripe_product_ids || "—"}\n` +
+            `   prices:    ${m.stripe_price_ids || "—"}\n` +
+            `   source:    ${m.source || "—"}`
         );
         // TODO: fulfillment hook — create a DB order, send a confirmation
-        // email, notify the warehouse, etc. Metadata on the intent includes
-        // `items`, `bottle_count`, `cart_json` (see create-payment-intent).
+        // email, notify the warehouse, etc. The cart_json metadata field
+        // contains the full line items as JSON if you need to reconstruct
+        // the exact colors/sets later.
+        //   const cart = JSON.parse(m.cart_json || "[]");
         break;
       }
       case "payment_intent.payment_failed": {
         const intent = event.data.object;
         console.warn(
-          `[stripe-webhook] payment_failed id=${intent.id} reason=`,
-          intent.last_payment_error?.message
+          `[stripe-webhook] ❌ payment_failed\n` +
+            `   intent: ${intent.id}\n` +
+            `   reason: ${intent.last_payment_error?.message || "unknown"}`
+        );
+        break;
+      }
+      case "charge.refunded": {
+        const charge = event.data.object;
+        console.log(
+          `[stripe-webhook] ↩️  charge.refunded\n` +
+            `   charge:  ${charge.id}\n` +
+            `   amount:  ${(charge.amount_refunded / 100).toFixed(2)} ${charge.currency.toUpperCase()}\n` +
+            `   reason:  ${charge.refund_reason || "—"}`
         );
         break;
       }

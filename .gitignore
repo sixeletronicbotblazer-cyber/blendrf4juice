@@ -55,3 +55,6 @@ server.log
 # user-uploaded source material (not part of the built app)
 /upload/
 /download/
+
+# Stripe setup scripts (use live secret key at runtime)
+/scripts-stripe/

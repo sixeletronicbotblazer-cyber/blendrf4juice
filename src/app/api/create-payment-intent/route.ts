@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getStripe, CURRENCY } from "@/lib/stripe";
 import {
   PRICES_CENTS,
+  STRIPE_PRICE_IDS,
+  STRIPE_PRODUCT_IDS,
+  BUNDLE_LABELS,
   cartBottleCount,
   cartDescription,
   type CartItem,
@@ -72,6 +75,18 @@ export async function POST(request: Request) {
 
     const stripe = getStripe();
 
+    // Build a comma-separated list of Stripe Price IDs + Product IDs for every
+    // line item so the Dashboard groups payments by product.
+    const priceIds = sanitized
+      .map((item) => STRIPE_PRICE_IDS[item.bundle])
+      .join(",");
+    const productIds = sanitized
+      .map((item) => STRIPE_PRODUCT_IDS[item.bundle])
+      .join(",");
+    const bundleLabels = sanitized
+      .map((item) => BUNDLE_LABELS[item.bundle])
+      .join(",");
+
     const intent = await stripe.paymentIntents.create({
       amount: amountCents,
       currency: CURRENCY,
@@ -82,6 +97,10 @@ export async function POST(request: Request) {
         items: cartDescription(sanitized).slice(0, 500),
         // store the line items as JSON for the webhook to read
         cart_json: JSON.stringify(sanitized).slice(0, 500),
+        // Stripe product/price references — keeps the Dashboard organized
+        stripe_price_ids: priceIds,
+        stripe_product_ids: productIds,
+        bundles: bundleLabels,
         source: "blendr-web",
       },
       description: `Blendr order — ${cartDescription(sanitized)}`.slice(0, 1000),

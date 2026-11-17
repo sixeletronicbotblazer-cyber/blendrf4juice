@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Reveal } from "./reveal";
+import BlendrCheckout from "./checkout";
 
 type ColorKey = "pink" | "ivory";
 type CartItem = {
@@ -180,6 +181,7 @@ export default function BlendrProduct() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [cartStatus, setCartStatus] = useState("");
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const closeCartRef = useRef<HTMLButtonElement | null>(null);
   const incomingHandled = useRef(false);
 
@@ -363,10 +365,12 @@ export default function BlendrProduct() {
   }, []);
 
   const checkout = useCallback(() => {
-    setCartStatus(
-      "Checkout is not available in this preview yet. Your selected bag is saved."
-    );
-  }, []);
+    if (cart.length === 0) return;
+    // Close the bag drawer, then open the embedded Stripe checkout modal.
+    setCartOpen(false);
+    setCartStatus("");
+    setCheckoutOpen(true);
+  }, [cart.length]);
 
   const scrollToBundles = useCallback(() => {
     document
@@ -968,6 +972,22 @@ export default function BlendrProduct() {
           CHOOSE MY SET <span aria-hidden="true">↑</span>
         </button>
       </div>
+      {checkoutOpen ? (
+        <BlendrCheckout
+          onClose={() => {
+            setCheckoutOpen(false);
+            // refresh cart from storage in case a payment cleared it
+            try {
+              const saved = JSON.parse(localStorage.getItem(BAG_KEY) || "[]");
+              if (Array.isArray(saved)) {
+                setCart(saved as CartItem[]);
+              }
+            } catch {
+              /* ignore */
+            }
+          }}
+        />
+      ) : null}
     </>
   );
 }

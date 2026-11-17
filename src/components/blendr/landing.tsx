@@ -349,13 +349,16 @@ export default function BlendrLanding() {
             <div className="steps-grid">
               <Reveal as="article" className="step-card">
                 <div className="step-media">
-                  <img
-                    src="/assets/step-1.gif"
-                    width={550}
-                    height={691}
-                    loading="lazy"
-                    alt="Step one: place the Blendr upside down and remove the base"
-                  />
+                  <picture>
+                    <source srcSet="/assets/step-1.webp" type="image/webp" />
+                    <img
+                      src="/assets/step-1.gif"
+                      width={550}
+                      height={691}
+                      loading="lazy"
+                      alt="Step one: place the Blendr upside down and remove the base"
+                    />
+                  </picture>
                 </div>
                 <div className="step-copy">
                   <span className="step-number">01</span>
@@ -369,14 +372,17 @@ export default function BlendrLanding() {
                 </div>
               </Reveal>
               <Reveal as="article" className="step-card">
-                <div className="step-media step-loop step-loop-add">
-                  <img
-                    src="/assets/step-2.gif"
-                    width={550}
-                    height={691}
-                    loading="lazy"
-                    alt="Step two: add fruit and ingredients to the Blendr cup"
-                  />
+                <div className="step-media">
+                  <picture>
+                    <source srcSet="/assets/step-2.webp" type="image/webp" />
+                    <img
+                      src="/assets/step-2.gif"
+                      width={550}
+                      height={691}
+                      loading="lazy"
+                      alt="Step two: add fruit and ingredients to the Blendr cup"
+                    />
+                  </picture>
                 </div>
                 <div className="step-copy">
                   <span className="step-number">02</span>
@@ -387,14 +393,17 @@ export default function BlendrLanding() {
                 </div>
               </Reveal>
               <Reveal as="article" className="step-card">
-                <div className="step-media step-loop step-loop-blend">
-                  <img
-                    src="/assets/step-3.gif"
-                    width={550}
-                    height={691}
-                    loading="lazy"
-                    alt="Step three: reattach Blendr and start blending"
-                  />
+                <div className="step-media">
+                  <picture>
+                    <source srcSet="/assets/step-3.webp" type="image/webp" />
+                    <img
+                      src="/assets/step-3.gif"
+                      width={550}
+                      height={691}
+                      loading="lazy"
+                      alt="Step three: reattach Blendr and start blending"
+                    />
+                  </picture>
                 </div>
                 <div className="step-copy">
                   <span className="step-number">03</span>

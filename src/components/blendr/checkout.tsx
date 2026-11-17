@@ -8,7 +8,12 @@ import {
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
-import { PRICES_USD, type CartItem } from "@/lib/blendr-catalog";
+import {
+  PRICES_USD,
+  SHIPPING_OPTIONS,
+  type CartItem,
+  type ShippingOption,
+} from "@/lib/blendr-catalog";
 
 type StripeConfig = {
   publishableKey: string;
@@ -22,6 +27,9 @@ type IntentResponse = {
   clientSecret: string;
   amount: number;
   currency: string;
+  shipping: ShippingOption;
+  shippingUsd: number;
+  itemsUsd: number;
 };
 
 const BAG_KEY = "blendr-preview-bag";
@@ -157,7 +165,13 @@ function CheckoutForm({
   );
 }
 
-export default function BlendrCheckout({ onClose }: { onClose: () => void }) {
+export default function BlendrCheckout({
+  onClose,
+  shipping,
+}: {
+  onClose: () => void;
+  shipping: ShippingOption;
+}) {
   const [config, setConfig] = useState<StripeConfig | null>(null);
   const [intent, setIntent] = useState<IntentResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -185,33 +199,39 @@ export default function BlendrCheckout({ onClose }: { onClose: () => void }) {
   }, []);
 
   // 2) Create a PaymentIntent when the modal opens and the cart is ready.
-  const createIntent = useCallback(async (items: CartItem[]) => {
-    setLoading(true);
-    setStartError("");
-    try {
-      const res = await fetch("/api/create-payment-intent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cart: items }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Could not start checkout.");
+  //    The shipping option is sent so the server can add the correct fee
+  //    and record it in the order metadata. The server recomputes the
+  //    shipping value itself — the client never sends a price.
+  const createIntent = useCallback(
+    async (items: CartItem[], ship: ShippingOption) => {
+      setLoading(true);
+      setStartError("");
+      try {
+        const res = await fetch("/api/create-payment-intent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cart: items, shipping: ship }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Could not start checkout.");
+        }
+        setIntent(data as IntentResponse);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setStartError(message);
+      } finally {
+        setLoading(false);
       }
-      setIntent(data as IntentResponse);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setStartError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     if (config?.ready && cart.length > 0) {
-      createIntent(cart);
+      createIntent(cart, shipping);
     }
-  }, [config, cart, createIntent]);
+  }, [config, cart, shipping, createIntent]);
 
   // Esc closes the modal.
   useEffect(() => {
@@ -231,11 +251,13 @@ export default function BlendrCheckout({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
-  const cartTotalCents = cart.reduce(
+  const cartItemsCents = cart.reduce(
     (sum, item) =>
       sum + PRICES_USD[item.bundle as 1 | 2 | 3] * item.sets * 100,
     0
   );
+  const shippingCents = SHIPPING_OPTIONS[shipping].cents;
+  const cartTotalCents = cartItemsCents + shippingCents;
 
   return (
     <div
@@ -338,7 +360,7 @@ export default function BlendrCheckout({ onClose }: { onClose: () => void }) {
               <button
                 type="button"
                 className="button button-primary"
-                onClick={() => createIntent(cart)}
+                onClick={() => createIntent(cart, shipping)}
               >
                 TRY AGAIN <span aria-hidden="true">↻</span>
               </button>
@@ -392,6 +414,18 @@ export default function BlendrCheckout({ onClose }: { onClose: () => void }) {
                   </strong>
                 </div>
               ))}
+              <div className="checkout-summary-divider" />
+              <div className="checkout-summary-line checkout-summary-sub">
+                <span>Subtotal</span>
+                <span>${(cartItemsCents / 100).toFixed(2)}</span>
+              </div>
+              <div className="checkout-summary-line checkout-summary-sub">
+                <span>
+                  Shipping —{" "}
+                  {shipping === "priority" ? "Priority" : "Standard"}
+                </span>
+                <span>{shipping === "priority" ? "$9.99" : "FREE"}</span>
+              </div>
               <div className="checkout-summary-total">
                 <span>Total</span>
                 <strong>${(cartTotalCents / 100).toFixed(2)}</strong>

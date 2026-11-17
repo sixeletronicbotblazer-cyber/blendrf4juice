@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Reveal } from "./reveal";
 import BlendrCheckout from "./checkout";
+import {
+  PRICES_USD as PRICES,
+  MAX_BOTTLES_PER_ORDER,
+  SHIPPING_OPTIONS,
+  type ShippingOption,
+} from "@/lib/blendr-catalog";
 
 type ColorKey = "pink" | "ivory";
 type CartItem = {
@@ -11,8 +17,8 @@ type CartItem = {
   colors: ColorKey[];
 };
 
-const PRICES: Record<1 | 2 | 3, number> = { 1: 49.97, 2: 94.97, 3: 124.97 };
 const BAG_KEY = "blendr-preview-bag";
+const SHIPPING_KEY = "blendr-preview-shipping";
 
 const PRODUCT_ASSETS: Record<
   string,
@@ -182,10 +188,12 @@ export default function BlendrProduct() {
   const [cartOpen, setCartOpen] = useState(false);
   const [cartStatus, setCartStatus] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [shipping, setShipping] = useState<ShippingOption>("standard");
+  const [limitWarning, setLimitWarning] = useState("");
   const closeCartRef = useRef<HTMLButtonElement | null>(null);
   const incomingHandled = useRef(false);
 
-  // hydrate cart from localStorage
+  // hydrate cart + shipping from localStorage
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(BAG_KEY) || "[]");
@@ -200,6 +208,11 @@ export default function BlendrProduct() {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setCart(valid as CartItem[]);
       }
+      // hydrate shipping choice
+      const savedShipping = localStorage.getItem(SHIPPING_KEY);
+      if (savedShipping === "priority" || savedShipping === "standard") {
+        setShipping(savedShipping as ShippingOption);
+      }
     } catch {
       /* ignore */
     }
@@ -212,6 +225,22 @@ export default function BlendrProduct() {
       /* ignore */
     }
   }, []);
+
+  const saveShipping = useCallback((opt: ShippingOption) => {
+    try {
+      localStorage.setItem(SHIPPING_KEY, opt);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const selectShipping = useCallback(
+    (opt: ShippingOption) => {
+      setShipping(opt);
+      saveShipping(opt);
+    },
+    [saveShipping]
+  );
 
   const setBaseColor = useCallback((color: ColorKey) => {
     setColors((prev) => {
@@ -232,8 +261,22 @@ export default function BlendrProduct() {
   }, []);
 
   const adjustSets = useCallback((delta: number) => {
-    setSets((s) => Math.max(1, Math.min(5, s + delta)));
-  }, []);
+    setSets((s) => {
+      const candidate = Math.max(1, Math.min(5, s + delta));
+      // Cap the set quantity so this bundle never exceeds 3 bottles.
+      const maxSets = Math.max(1, Math.floor(MAX_BOTTLES_PER_ORDER / bundle));
+      if (candidate > maxSets) {
+        setLimitWarning(
+          `A ${bundle}-bottle set is limited to ${maxSets} set${
+            maxSets > 1 ? "s" : ""
+          } so the order stays at ${MAX_BOTTLES_PER_ORDER} bottles max.`
+        );
+        setTimeout(() => setLimitWarning(""), 3500);
+        return Math.min(candidate, maxSets);
+      }
+      return candidate;
+    });
+  }, [bundle]);
 
   const setBottleColor = useCallback((index: number, color: ColorKey) => {
     setColors((prev) => {
@@ -246,6 +289,25 @@ export default function BlendrProduct() {
 
   const addToBag = useCallback(() => {
     setCart((prev) => {
+      const currentBottles = prev.reduce(
+        (sum, item) => sum + item.bundle * item.sets,
+        0
+      );
+      const addingBottles = bundle * sets;
+      if (currentBottles + addingBottles > MAX_BOTTLES_PER_ORDER) {
+        const remaining = Math.max(0, MAX_BOTTLES_PER_ORDER - currentBottles);
+        setLimitWarning(
+          `Your bag already has ${currentBottles} bottle${
+            currentBottles > 1 ? "s" : ""
+          }. The limit is ${MAX_BOTTLES_PER_ORDER} per order${
+            remaining > 0
+              ? ` — you can add up to ${remaining} more.`
+              : ". Remove an item first."
+          }`
+        );
+        setTimeout(() => setLimitWarning(""), 4000);
+        return prev;
+      }
       const next = [...prev, { bundle, sets, colors: [...colors] }];
       saveCart(next);
       return next;
@@ -259,6 +321,7 @@ export default function BlendrProduct() {
       saveCart(next);
       return next;
     });
+    setLimitWarning("");
   }, [saveCart]);
 
   const openCart = useCallback(() => {
@@ -293,10 +356,7 @@ export default function BlendrProduct() {
     return () => document.removeEventListener("keydown", onKey);
   }, [cartOpen, closeCart]);
 
-  const total = useMemo(
-    () => PRICES[bundle] * sets,
-    [bundle, sets]
-  );
+  const total = useMemo(() => PRICES[bundle] * sets, [bundle, sets]);
 
   const cartSubtotal = useMemo(
     () => cart.reduce((sum, item) => sum + PRICES[item.bundle] * item.sets, 0),
@@ -306,6 +366,10 @@ export default function BlendrProduct() {
     () => cart.reduce((sum, item) => sum + item.bundle * item.sets, 0),
     [cart]
   );
+  const cartBottles = cartCount;
+  const shippingUsd = SHIPPING_OPTIONS[shipping].usd;
+  const cartGrandTotal = cartSubtotal + shippingUsd;
+  const atBottleLimit = cartBottles >= MAX_BOTTLES_PER_ORDER;
 
   const galleryImage = PRODUCT_ASSETS[gallery] || PRODUCT_ASSETS.pink;
   const colorHint =
@@ -348,6 +412,20 @@ export default function BlendrProduct() {
         colors: finalColors,
       };
       setCart((prev) => {
+        const currentBottles = prev.reduce(
+          (sum, it) => sum + it.bundle * it.sets,
+          0
+        );
+        // Respect the 3-bottle hard cap — skip silently if the CTA would
+        // push the order over the limit (rare for the landing CTA which
+        // starts from an empty bag, but defensive).
+        if (currentBottles + item.bundle > MAX_BOTTLES_PER_ORDER) {
+          setLimitWarning(
+            `This would exceed the ${MAX_BOTTLES_PER_ORDER}-bottle limit. Remove an item or choose a smaller set.`
+          );
+          setTimeout(() => setLimitWarning(""), 4000);
+          return prev;
+        }
         const next = [...prev, item];
         saveCart(next);
         return next;
@@ -945,11 +1023,82 @@ export default function BlendrProduct() {
           )}
         </div>
         <div className="cart-footer">
-          <div>
+          <div className="cart-subtotal-row">
             <span>Subtotal</span>
             <strong>${cartSubtotal.toFixed(2)}</strong>
           </div>
-          <p>Shipping and payment options will be shown at checkout.</p>
+
+          {cart.length > 0 ? (
+            <div
+              className="shipping-options"
+              role="radiogroup"
+              aria-label="Shipping option"
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={shipping === "standard"}
+                className={`shipping-option${
+                  shipping === "standard" ? " selected" : ""
+                }`}
+                onClick={() => selectShipping("standard")}
+              >
+                <span className="shipping-radio" aria-hidden="true" />
+                <span className="shipping-content">
+                  <strong>Standard shipping</strong>
+                  <small>Free · arrives in the normal window</small>
+                </span>
+                <span className="shipping-price shipping-free">FREE</span>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={shipping === "priority"}
+                className={`shipping-option shipping-option-priority${
+                  shipping === "priority" ? " selected" : ""
+                }`}
+                onClick={() => selectShipping("priority")}
+              >
+                <span className="shipping-radio" aria-hidden="true" />
+                <span className="shipping-content">
+                  <strong>Priority shipping</strong>
+                  <small>
+                    Ready for your fresh routine sooner? Choose priority
+                    shipping.
+                  </small>
+                </span>
+                <span className="shipping-price">$9.99</span>
+              </button>
+            </div>
+          ) : null}
+
+          <div className="cart-totals">
+            <div className="cart-totals-line">
+              <span>Subtotal</span>
+              <span>${cartSubtotal.toFixed(2)}</span>
+            </div>
+            <div className="cart-totals-line">
+              <span>Shipping</span>
+              <span>
+                {shipping === "priority" ? "$9.99" : "FREE"}
+              </span>
+            </div>
+            <div className="cart-totals-total">
+              <span>Total</span>
+              <strong>${cartGrandTotal.toFixed(2)}</strong>
+            </div>
+          </div>
+
+          {limitWarning ? (
+            <p className="cart-limit-warning" role="alert">
+              {limitWarning}
+            </p>
+          ) : null}
+
+          <p className="cart-checkout-note">
+            The exact total above is sent to Stripe — shipping is never charged
+            twice.
+          </p>
           <button
             id="checkout-button"
             className="button button-primary"
@@ -974,6 +1123,7 @@ export default function BlendrProduct() {
       </div>
       {checkoutOpen ? (
         <BlendrCheckout
+          shipping={shipping}
           onClose={() => {
             setCheckoutOpen(false);
             // refresh cart from storage in case a payment cleared it

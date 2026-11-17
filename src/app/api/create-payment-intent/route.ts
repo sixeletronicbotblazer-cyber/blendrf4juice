@@ -5,21 +5,26 @@ import {
   STRIPE_PRICE_IDS,
   STRIPE_PRODUCT_IDS,
   BUNDLE_LABELS,
+  MAX_BOTTLES_PER_ORDER,
+  SHIPPING_OPTIONS,
   cartBottleCount,
   cartDescription,
   type CartItem,
   type BundleKey,
+  type ShippingOption,
 } from "@/lib/blendr-catalog";
 
 /**
  * POST /api/create-payment-intent
  *
- * Body: { cart: CartItem[] }
- * Response: { clientSecret: string, amount: number, currency: string, id: string }
+ * Body: { cart: CartItem[], shipping: "standard" | "priority" }
+ * Response: { clientSecret, amount, currency, id, shipping, shippingUsd, itemsUsd }
  *
- * Security: the amount is recomputed SERVER-SIDE from the catalog, never
- * trusted from the client. The client only sends which bundles/sets/colors
- * it wants; the server looks up the canonical price.
+ * Security:
+ *   - amount recomputed SERVER-SIDE (client never sends a price)
+ *   - total bottles hard-capped at MAX_BOTTLES_PER_ORDER (3)
+ *   - shipping value comes from the server's own SHIPPING_OPTIONS table
+ *   - the Stripe amount = items + shipping (never charged twice)
  */
 export async function POST(request: Request) {
   try {
@@ -33,7 +38,8 @@ export async function POST(request: Request) {
     }
 
     // Validate + canonicalize every item, summing the price server-side.
-    let amountCents = 0;
+    let itemsCents = 0;
+    let bottleCount = 0;
     const sanitized: CartItem[] = [];
     for (const raw of incomingCart) {
       const bundle = Number(raw?.bundle) as BundleKey;
@@ -51,22 +57,37 @@ export async function POST(request: Request) {
         );
       }
       const colors = Array.isArray(raw?.colors) ? raw.colors : [];
-      if (
-        !colors.every(
-          (c: unknown) => c === "pink" || c === "ivory"
-        )
-      ) {
+      if (!colors.every((c: unknown) => c === "pink" || c === "ivory")) {
         return NextResponse.json(
           { error: "Invalid color selection." },
           { status: 400 }
         );
       }
-      amountCents += PRICES_CENTS[bundle] * sets;
+      itemsCents += PRICES_CENTS[bundle] * sets;
+      bottleCount += bundle * sets;
       sanitized.push({ bundle, sets, colors: colors as CartItem["colors"] });
     }
 
+    // Hard cap on total bottles per order.
+    if (bottleCount > MAX_BOTTLES_PER_ORDER) {
+      return NextResponse.json(
+        {
+          error: `This order has ${bottleCount} bottles. The limit is ${MAX_BOTTLES_PER_ORDER} bottles per order.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Resolve the shipping option server-side — never trust a client-supplied
+    // shipping amount. Default to standard (free) if missing/invalid.
+    const incomingShipping = String(body?.shipping) as ShippingOption;
+    const shipping: ShippingOption =
+      incomingShipping === "priority" ? "priority" : "standard";
+    const shippingCents = SHIPPING_OPTIONS[shipping].cents;
+
+    const amountCents = itemsCents + shippingCents;
+
     if (amountCents < 50) {
-      // Stripe minimum is 50 cents (USD).
       return NextResponse.json(
         { error: "Order total is below the minimum." },
         { status: 400 }
@@ -75,7 +96,7 @@ export async function POST(request: Request) {
 
     const stripe = getStripe();
 
-    // Build a comma-separated list of Stripe Price IDs + Product IDs for every
+    // Comma-separated lists of Stripe Price IDs + Product IDs for every
     // line item so the Dashboard groups payments by product.
     const priceIds = sanitized
       .map((item) => STRIPE_PRICE_IDS[item.bundle])
@@ -93,7 +114,7 @@ export async function POST(request: Request) {
       automatic_payment_methods: { enabled: true },
       metadata: {
         brand: "Blendr",
-        bottle_count: String(cartBottleCount(sanitized)),
+        bottle_count: String(bottleCount),
         items: cartDescription(sanitized).slice(0, 500),
         // store the line items as JSON for the webhook to read
         cart_json: JSON.stringify(sanitized).slice(0, 500),
@@ -101,9 +122,16 @@ export async function POST(request: Request) {
         stripe_price_ids: priceIds,
         stripe_product_ids: productIds,
         bundles: bundleLabels,
+        // shipping record so the fulfillment side knows how to ship
+        shipping_option: shipping,
+        shipping_label: SHIPPING_OPTIONS[shipping].label,
+        shipping_cents: String(shippingCents),
+        items_cents: String(itemsCents),
         source: "blendr-web",
       },
-      description: `Blendr order — ${cartDescription(sanitized)}`.slice(0, 1000),
+      description: `Blendr order — ${cartDescription(sanitized)}${
+        shipping === "priority" ? " · priority shipping" : ""
+      }`.slice(0, 1000),
     });
 
     return NextResponse.json({
@@ -111,6 +139,9 @@ export async function POST(request: Request) {
       clientSecret: intent.client_secret,
       amount: intent.amount,
       currency: intent.currency,
+      shipping,
+      shippingUsd: SHIPPING_OPTIONS[shipping].usd,
+      itemsUsd: itemsCents / 100,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

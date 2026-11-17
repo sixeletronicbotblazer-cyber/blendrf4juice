@@ -250,4 +250,52 @@
 .checkout-summary-line strong{color:var(--ink);font-size:.82rem;white-space:nowrap}
 .checkout-summary-total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px dashed #e0d6e0;margin-top:6px;padding-top:10px;font-weight:800}
 .checkout-summary-total strong{font-size:1.2rem;color:var(--violet);font-family:'Outfit',sans-serif}
+.checkout-summary-divider{height:1px;background:#eee6de;margin:8px 0 4px}
+.checkout-summary-sub{font-size:.76rem;color:#6a7275}
+.checkout-summary-sub span:last-child{font-weight:600;color:#3a4857}
 @media(max-width:480px){.checkout-backdrop{padding:0}.checkout-modal{border-radius:0;min-height:100vh}.checkout-body{padding:18px}}
+
+/* ============ CART SHIPPING SELECTOR + TOTALS ============ */
+.cart-subtotal-row{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0 12px;font-size:.95rem}
+.cart-subtotal-row strong{font-size:1.15rem;color:var(--ink);font-family:'Outfit',sans-serif}
+
+.shipping-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 14px}
+.shipping-option{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:11px;text-align:left;border:1.5px solid #e5dbdb;background:#fff;border-radius:14px;padding:14px 14px;cursor:pointer;transition:border .2s,box-shadow .2s,transform .2s,color .2s;font:inherit;color:var(--ink)}
+.shipping-option:hover{transform:translateY(-2px)}
+.shipping-option.selected{border-color:#c9b6e6;box-shadow:0 0 0 3px #efe6fb}
+.shipping-option:focus-visible{outline:3px solid #6297ed;outline-offset:3px}
+.shipping-radio{width:18px;height:18px;border-radius:50%;border:2px solid #c9bdcf;flex:none;position:relative;transition:border-color .2s,background .2s}
+.shipping-option.selected .shipping-radio{border-color:var(--violet);background:var(--violet)}
+.shipping-option.selected .shipping-radio::after{content:"";position:absolute;inset:3px;border-radius:50%;background:#fff}
+.shipping-content{display:flex;flex-direction:column;gap:3px;min-width:0}
+.shipping-content strong{font-size:.86rem;font-weight:800;font-family:'Outfit','DM Sans',sans-serif;letter-spacing:-.005em}
+.shipping-content small{font-size:.68rem;color:#6f7777;line-height:1.35}
+.shipping-price{font-size:.9rem;font-weight:800;font-family:'Outfit',sans-serif;color:var(--ink);white-space:nowrap}
+.shipping-free{color:#2c8a6b}
+
+/* Priority option — violet brand accent */
+.shipping-option-priority{border-color:#e3d4f7;background:linear-gradient(150deg,#fbf7ff 0%,#f4ecff 100%)}
+.shipping-option-priority:hover{border-color:#c9b6e6}
+.shipping-option-priority.selected{border-color:var(--violet);box-shadow:0 0 0 3px #efe6fb,0 10px 25px rgba(121,80,197,.15);background:linear-gradient(150deg,#f7f0ff 0%,#efe2ff 100%)}
+.shipping-option-priority .shipping-content strong{color:var(--violet)}
+.shipping-option-priority .shipping-price{color:var(--violet);font-size:1rem}
+.shipping-option-priority.selected .shipping-radio{border-color:var(--violet);background:var(--violet)}
+
+.cart-totals{display:flex;flex-direction:column;gap:5px;background:#f6f2ef;border-radius:12px;padding:13px 15px;margin-bottom:10px}
+.cart-totals-line{display:flex;justify-content:space-between;font-size:.82rem;color:#6a7275}
+.cart-totals-line span:last-child{font-weight:700;color:#3a4857}
+.cart-totals-total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px dashed #d8ced8;margin-top:5px;padding-top:9px;font-weight:800;font-size:.95rem}
+.cart-totals-total strong{font-size:1.35rem;color:var(--violet);font-family:'Outfit',sans-serif}
+.cart-limit-warning{background:#fdecea;border:1px solid #f5c6cb;color:#c0392b;font-size:.76rem;border-radius:10px;padding:9px 12px;margin:0 0 10px;line-height:1.4}
+.cart-checkout-note{font-size:.68rem;color:#8a9499;margin:0 0 9px;text-align:center;line-height:1.4}
+
+@media(max-width:700px){
+  .shipping-options{grid-template-columns:1fr;gap:8px}
+  .shipping-option{padding:12px 12px;gap:10px}
+  .shipping-content strong{font-size:.82rem}
+  .shipping-content small{font-size:.64rem}
+  .shipping-price{font-size:.84rem}
+  .shipping-option-priority .shipping-price{font-size:.92rem}
+  .cart-totals{padding:11px 13px}
+  .cart-totals-total strong{font-size:1.22rem}
+}

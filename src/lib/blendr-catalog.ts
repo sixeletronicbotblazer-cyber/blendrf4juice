@@ -48,25 +48,58 @@ export const BUNDLE_LABELS: Record<BundleKey, string> = {
 
 export const CURRENCY = "usd";
 
+/** Hard limit on total bottles per order (Solo=1, Pair=2, Trio=3 × sets). */
+export const MAX_BOTTLES_PER_ORDER = 3;
+
+/** Shipping options. Priority is per-order (not per-bottle). */
+export const SHIPPING_STANDARD_CENTS = 0; // FREE
+export const SHIPPING_PRIORITY_CENTS = 999; // $9.99 per order
+
+export type ShippingOption = "standard" | "priority";
+
+export const SHIPPING_OPTIONS: Record<
+  ShippingOption,
+  { label: string; cents: number; usd: number }
+> = {
+  standard: { label: "Standard shipping", cents: SHIPPING_STANDARD_CENTS, usd: 0 },
+  priority: { label: "Priority shipping", cents: SHIPPING_PRIORITY_CENTS, usd: 9.99 },
+};
+
 export type CartItem = {
   bundle: BundleKey;
   sets: number;
   colors: ("pink" | "ivory")[];
 };
 
-/** Compute the USD total for a cart. */
+/** Compute the USD total for a cart (items only, no shipping). */
 export function cartTotalUsd(cart: CartItem[]): number {
   return cart.reduce((sum, item) => sum + PRICES_USD[item.bundle] * item.sets, 0);
 }
 
-/** Compute the total in cents for Stripe. */
+/** Compute the total in cents for Stripe (items only, no shipping). */
 export function cartTotalCents(cart: CartItem[]): number {
   return cart.reduce((sum, item) => sum + PRICES_CENTS[item.bundle] * item.sets, 0);
 }
 
-/** Total bottle count across a cart (used for order metadata). */
+/** Total bottle count across a cart (used for order metadata + limit). */
 export function cartBottleCount(cart: CartItem[]): number {
   return cart.reduce((sum, item) => sum + item.bundle * item.sets, 0);
+}
+
+/** Grand total in cents including shipping. */
+export function grandTotalCents(
+  cart: CartItem[],
+  shipping: ShippingOption
+): number {
+  return cartTotalCents(cart) + SHIPPING_OPTIONS[shipping].cents;
+}
+
+/** Grand total in USD including shipping. */
+export function grandTotalUsd(
+  cart: CartItem[],
+  shipping: ShippingOption
+): number {
+  return cartTotalUsd(cart) + SHIPPING_OPTIONS[shipping].usd;
 }
 
 /** Build a short human description for the Stripe metadata / receipt. */
